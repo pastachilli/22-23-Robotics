@@ -9,8 +9,9 @@ import csv
 import os
 
 class ArucoNode(Node):
-    def init(self):
-        super().init('aruco_node')
+    def __init__(self):
+        super().__init__('aruco_node')
+        
         self.bridge = CvBridge()
 
         # Subscriptions
@@ -26,15 +27,15 @@ class ArucoNode(Node):
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
         self.aruco_params = cv2.aruco.DetectorParameters()
         self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
-
-        self.csv_file = 'aruco_detections.csv'
+        
+        self.csv_file = 'aruco_log.csv'
         self.create_csv_file()
 
     def create_csv_file(self):
         if not os.path.exists(self.csv_file):
             with open(self.csv_file, 'w') as csvfile:
                 csv_writer = csv.writer(csvfile)
-                csv_writer.writerow(['timestamp', 'camera', 'id'])
+                csv_writer.writerow(['timestamp', 'id', 'latitude', 'longitude'])
 
     def image_callback1(self, msg):
         self.process_image(msg, "camera1")
@@ -57,7 +58,7 @@ class ArucoNode(Node):
         if ids is not None:
             for i in range(len(ids)):
                 frame = cv2.putText(frame, str(ids[i][0]), tuple(corners[i][0][0].astype(int)), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 2)
-                self.write_csv_entry(ids[i][0], camera_name)
+                self.write_csv_entry(ids[i][0])
 
         modified_image_msg = self.bridge.cv2_to_imgmsg(frame, 'bgr8')
         modified_image_msg.header.frame_id = camera_name
@@ -69,21 +70,27 @@ class ArucoNode(Node):
             self.publisher2.publish(modified_image_msg)
         elif camera_name == "camera3":
             self.publisher3.publish(modified_image_msg)
-
-    def write_csv_entry(self, aruco_id, camera_name):
+            
+    def write_csv_entry(self, aruco_id):
         timestamp = self.get_clock().now().to_msg().nanosec
+        latitude = 0
+        longitude = 0 # Put subscription to the gps chip here
         with open(self.csv_file, 'a') as csvfile:
             csv_writer = csv.writer(csvfile)
-            csv_writer.writerow([timestamp, camera_name, aruco_id])
+            csv_writer.writerow([timestamp, aruco_id, latitude, longitude])
 
-    def main(args=None):
-        rclpy.init(args=args)
-        aruco_node = ArucoNode()
-        try:
-            rclpy.spin(aruco_node)
-        except KeyboardInterrupt:
-            pass
-        aruco_node.destroy_node()
+def main(args=None):
+    rclpy.init(args=args)
 
-if name == 'main':
+    aruco_node = ArucoNode()
+
+    try:
+        rclpy.spin(aruco_node)
+    except KeyboardInterrupt:
+        pass
+
+    aruco_node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
     main()
